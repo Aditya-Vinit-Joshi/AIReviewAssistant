@@ -9,6 +9,8 @@ using DotNetEnv;
 using System.Diagnostics;
 using Newtonsoft.Json;
 using AIReviewAssistant.Dtos;
+using System.Text.RegularExpressions;
+using Newtonsoft.Json.Linq;
 
 namespace AIReviewAssistant.Services.AIServices
 {
@@ -82,8 +84,21 @@ namespace AIReviewAssistant.Services.AIServices
                     return new List<InlineComments>();
                 }
 
-                var json = response["Content"]?.ToString();
-                return JsonConvert.DeserializeObject<List<InlineComments>>(json ?? "[]") ?? new();
+                var contentRaw = response["Content"]?.ToString();
+                if (string.IsNullOrEmpty(contentRaw))
+                    return new List<InlineComments>();
+
+                
+                var parsedResponse = JObject.Parse(contentRaw);
+                var generatedText = parsedResponse["candidates"]?[0]?["content"]?["parts"]?[0]?["text"]?.ToString();
+                string jsonCleaned = Regex.Match(generatedText ?? "", @"```json\s*(.*?)\s*```", RegexOptions.Singleline).Groups[1].Value;
+                if (string.IsNullOrWhiteSpace(jsonCleaned))
+                    jsonCleaned = generatedText ?? "";
+
+                
+                var inlineComments = JsonConvert.DeserializeObject<List<InlineComments>>(jsonCleaned) ?? new List<InlineComments>();
+                return inlineComments;
+
             }
             catch (Exception ex)
             {
